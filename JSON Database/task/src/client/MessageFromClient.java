@@ -5,14 +5,14 @@ public class MessageFromClient {
     private String key;
     private String value;
 
-    public MessageFromClient(String firstName, String keyString, String value) {
-        this.type = firstName;
+    public MessageFromClient(String type, String key, String value) {
+        this.type = type;
 
-        if (!keyString.isEmpty()) {
-            this.key = keyString;
+        if (key != null && !key.isEmpty()) {
+            this.key = key;
         }
 
-        if (!value.isEmpty()) {
+        if (value != null && !value.isEmpty()) {
             this.value = value;
         }
     }

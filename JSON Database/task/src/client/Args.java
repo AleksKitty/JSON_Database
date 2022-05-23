@@ -3,6 +3,9 @@ package client;
 import com.beust.jcommander.Parameter;
 
 public class Args {
+    @Parameter(names = "-in", description = "File with input")
+    private String inputFile;
+
     @Parameter(names = "-t", description = "Type of command")
     private String command;
 
@@ -11,6 +14,10 @@ public class Args {
 
     @Parameter(names = "-v", description = "Text message")
     private String textValue;
+
+    public String getInputFile() {
+        return inputFile;
+    }
 
     public String getCommand() {
         if (command == null || command.isEmpty()) {

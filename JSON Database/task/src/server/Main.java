@@ -4,6 +4,8 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Main {
 
@@ -13,28 +15,48 @@ public class Main {
 
     public static void main(String[] arguments) {
 
-        User user = new User();
-
-        try (ServerSocket server = new ServerSocket(PORT, 50, InetAddress.getByName(ADDRESS))) {
+        try {
+            ServerSocket serverSocket = new ServerSocket(PORT, 50, InetAddress.getByName(ADDRESS));
             System.out.println("Server started!");
+            ExecutorService executor = Executors.newFixedThreadPool(4);
+
             while (!flagToExit) {
-                try (
-                        Socket socket = server.accept(); // accepting a new client
-                        ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
-                        ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-                ) {
+                try {
+                    Socket socket = serverSocket.accept(); // accepting a new client
+                    ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
+                    ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
+
                     String command = (String) input.readObject(); // reading a message
                     System.out.println("Received: " + command);
 
-                    flagToExit = user.inputCommand(command);
+                    executor.submit(() -> {
 
-                    System.out.println("Sent: " + user.getResponseMsg());
-                    output.writeObject(user.getResponseMsg()); // send it to the client
+                        ClientHandler clientHandler = new ClientHandler();
+                        flagToExit = clientHandler.doCommand(command);
+
+                        try {
+                            output.writeObject(clientHandler.getResponseMsg()); // send it to the client
+                            System.out.println("Sent: " + clientHandler.getResponseMsg());
+                        } catch (IOException ioException) {
+                            ioException.printStackTrace();
+                        }
+
+                        if (flagToExit) {
+                            try {
+                                serverSocket.close();
+                                System.exit(0);
+                            } catch (IOException ioException) {
+                                ioException.printStackTrace();
+                            }
+                        }
+                    });
+
+                } catch (IOException | ClassNotFoundException ioException) {
+                    ioException.printStackTrace();
                 }
             }
-        } catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
         }
     }
-
 }

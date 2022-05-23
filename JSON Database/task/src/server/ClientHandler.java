@@ -43,10 +43,14 @@ public class ClientHandler {
     protected boolean checkForExit(String command) {
         MessageFromClient msgCommand = gson.fromJson(command, MessageFromClient.class);
 
+        if (msgCommand.getType().equals("exit")) {
+            this.exit();
+        }
+
         return flagToExit;
     }
 
-    protected boolean doCommand(String command) {
+    protected void doCommand(String command) {
         
         MessageFromClient msgCommand = gson.fromJson(command, MessageFromClient.class);
 
@@ -60,14 +64,9 @@ public class ClientHandler {
             case "delete":
                 this.delete(msgCommand.getKey());
                 break;
-            case "exit":
-                this.exit();
-                break;
             default:
                 break;
         }
-
-        return flagToExit;
     }
 
     private void set(MessageFromClient msgCommand) {

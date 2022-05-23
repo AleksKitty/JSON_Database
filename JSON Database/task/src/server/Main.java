@@ -29,32 +29,38 @@ public class Main {
                     String command = (String) input.readObject(); // reading a message
                     System.out.println("Received: " + command);
 
-                    executor.submit(() -> {
 
-                        ClientHandler clientHandler = new ClientHandler();
-                        flagToExit = clientHandler.doCommand(command);
-
+                    ClientHandler clientHandler = new ClientHandler();
+                    flagToExit = clientHandler.checkForExit(command);
+                    if (flagToExit) {
                         try {
-                            output.writeObject(clientHandler.getResponseMsg()); // send it to the client
-                            System.out.println("Sent: " + clientHandler.getResponseMsg());
+                            sendResponse(clientHandler, output);
+                            socket.close();
+                            serverSocket.close();
+                            System.exit(0);
                         } catch (IOException ioException) {
                             ioException.printStackTrace();
                         }
+                    }
 
-                        if (flagToExit) {
-                            try {
-                                serverSocket.close();
-                                System.exit(0);
-                            } catch (IOException ioException) {
-                                ioException.printStackTrace();
-                            }
-                        }
+                    executor.submit(() -> {
+                        clientHandler.doCommand(command);
+                        sendResponse(clientHandler, output);
                     });
 
                 } catch (IOException | ClassNotFoundException ioException) {
                     ioException.printStackTrace();
                 }
             }
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        }
+    }
+
+    private static void sendResponse(ClientHandler clientHandler, ObjectOutputStream output) {
+        try {
+            output.writeObject(clientHandler.getResponseMsg()); // send it to the client
+            System.out.println("Sent: " + clientHandler.getResponseMsg());
         } catch (IOException ioException) {
             ioException.printStackTrace();
         }

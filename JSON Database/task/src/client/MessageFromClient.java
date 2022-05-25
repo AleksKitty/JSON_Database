@@ -8,24 +8,12 @@ public class MessageFromClient {
     public MessageFromClient(String type, String key, String value) {
         this.type = type;
 
-        if (key != null && !key.isEmpty()) {
+        if (key != null) {
             this.key = key;
         }
 
         if (value != null && !value.isEmpty()) {
             this.value = value;
         }
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public String getValue() {
-        return value;
     }
 }

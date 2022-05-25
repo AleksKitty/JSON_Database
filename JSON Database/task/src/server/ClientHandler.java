@@ -1,12 +1,10 @@
 package server;
 
-
-import client.MessageFromClient;
 import com.google.gson.*;
+import com.google.gson.internal.LinkedTreeMap;
 
 import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -19,9 +17,9 @@ public class ClientHandler {
     private final Lock writeLock = lock.writeLock();
 
     // imitation of Database
-    private final Gson gsonForFile = new GsonBuilder().setPrettyPrinting().create();
-    private static final String FILENAME_TEST_ENVIRONMENT = System.getProperty("user.dir") + "/src/server/data/db.json";
-    private static final String FILENAME_LOCAL_ENVIRONMENT = System.getProperty("user.dir") + "/JSON Database/task/src/server/data/db.json";
+    private static final String FILENAME_ENVIRONMENT = System.getProperty("user.dir") + "/src/server/data/db.json";
+    //Local:
+//    private static final String FILENAME_ENVIRONMENT = System.getProperty("user.dir") + "/JSON Database/task/src/server/data/db.json";
 
     // to work with json
     private final Gson gson = new Gson();
@@ -41,9 +39,9 @@ public class ClientHandler {
     }
 
     protected boolean checkForExit(String command) {
-        MessageFromClient msgCommand = gson.fromJson(command, MessageFromClient.class);
+        LinkedTreeMap<?, ?> map = gson.fromJson(new StringReader(command), LinkedTreeMap.class);
 
-        if (msgCommand.getType().equals("exit")) {
+        if (map.get("type").equals("exit")) {
             this.exit();
         }
 
@@ -51,40 +49,45 @@ public class ClientHandler {
     }
 
     protected void doCommand(String command) {
-        
-        MessageFromClient msgCommand = gson.fromJson(command, MessageFromClient.class);
 
-        switch (msgCommand.getType()) {
+        LinkedTreeMap<?, ?> map = gson.fromJson(new StringReader(command), LinkedTreeMap.class);
+
+        switch ((String) map.get("type")) {
             case "set":
-                this.set(msgCommand);
+                this.set(map);
                 break;
             case "get":
-                this.get(msgCommand.getKey());
+                this.get((ArrayList<?>) map.get("key"));
                 break;
             case "delete":
-                this.delete(msgCommand.getKey());
+                this.delete((ArrayList<?>) map.get("key"));
                 break;
             default:
                 break;
         }
     }
 
-    private void set(MessageFromClient msgCommand) {
+    private void set(LinkedTreeMap<?, ?> data) {
+        ArrayList<String> stringArray;
+        if (data.get("key") instanceof String) {
+            stringArray = new ArrayList<>();
+            stringArray.add((String) data.get("key"));
+        } else {
+            stringArray = (ArrayList<String>) data.get("key");
+        }
         // write to file
-        HashMap<String, String> outputMap = new HashMap<>();
-        outputMap.put(msgCommand.getKey(), msgCommand.getValue());
-        writeToFile(outputMap);
+        writeToFileObject(stringArray, data.get("value"));
 
         // response
         ResponseToClient responseToClient = new ResponseToClient(Responses.OK.toString(), "", "");
         this.responseMsg = gson.toJson(responseToClient);
     }
 
-    private void get(String inputKey) {
-
+    private void get(ArrayList<?> inputKey) {
         ResponseToClient responseToClient;
-        if (checkIfNullOrEmpty(inputKey)) {
-            String value = readFromFileByKey(inputKey);
+
+        Object value = readFromFileByKey(inputKey);
+        if (value != null) {
             responseToClient = new ResponseToClient(Responses.OK.toString(), value, "");
         } else {
             responseToClient = new ResponseToClient(Responses.ERROR.toString(), "", NO_SUCH_KEY);
@@ -92,16 +95,12 @@ public class ClientHandler {
         this.responseMsg = gson.toJson(responseToClient);
     }
 
-    private void delete(String inputKey) {
+    private void delete(ArrayList<?> inputKey) {
 
         ResponseToClient responseToClient;
+        boolean result = removeFromFileObject(inputKey);
 
-        if (checkIfNullOrEmpty(inputKey)) {
-            // write to file
-            HashMap<String, String> outputMap = new HashMap<>();
-            outputMap.put(inputKey, "");
-            writeToFile(outputMap);
-
+        if (result) {
             responseToClient = new ResponseToClient(Responses.OK.toString(), "", "");
         } else {
             responseToClient = new ResponseToClient(Responses.ERROR.toString(), "", NO_SUCH_KEY);
@@ -117,40 +116,105 @@ public class ClientHandler {
         this.responseMsg = gson.toJson(responseToClient);
     }
 
-    private boolean checkIfNullOrEmpty(String inputKey) {
-        String value = readFromFileByKey(inputKey);
+    private void writeToFileObject(ArrayList<String> keys, Object data) {
 
-        return value != null && !value.isEmpty();
-    }
+        // get json
+        JsonElement jsonWholeElement = null;
+        readLock.lock();
+        try (Reader reader = new FileReader(FILENAME_ENVIRONMENT)) {
+            jsonWholeElement = JsonParser.parseReader(reader);
 
-    private void writeToFile(HashMap<String, String> data) {
-        // write to file
-        writeLock.lock();
-        try (FileWriter writer = new FileWriter(FILENAME_TEST_ENVIRONMENT)) {
-            gsonForFile.toJson(data, writer);
+            // update
+            JsonElement jsonElement = jsonWholeElement;
+
+            for (int i = 0; i < keys.size(); i++) {
+                if (jsonElement != null && !(jsonElement instanceof JsonNull)) {
+                    if (i == keys.size() - 1) {
+                        if (data instanceof String) {
+                            jsonElement.getAsJsonObject().addProperty(keys.get(i), (String) data);
+                        } else {
+                            JsonObject newJsonObject = gson.toJsonTree(data).getAsJsonObject();
+                            jsonElement.getAsJsonObject().add(keys.get(i), newJsonObject);
+                        }
+                    } else {
+                        jsonElement = jsonElement.getAsJsonObject().get(keys.get(i));
+                    }
+                }
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
+        readLock.unlock();
+
+        // write to file
+        writeLock.lock();
+        try (FileWriter writer = new FileWriter(FILENAME_ENVIRONMENT)) {
+            gson.toJson(jsonWholeElement, writer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         writeLock.unlock();
     }
 
-    private String readFromFileByKey(String key) {
-        String value = null;
+    private Object readFromFileByKey(ArrayList<?> keys) {
+        Object value = null;
 
-        try {
-            Reader reader = new FileReader(FILENAME_TEST_ENVIRONMENT);
+        readLock.lock();
+        try (Reader reader = new FileReader(FILENAME_ENVIRONMENT)) {
+            JsonElement jsonElement = JsonParser.parseReader(reader);
 
-            // Convert JSON File to Java Object
-            readLock.lock();
-            Map<?, ?> map = gsonForFile.fromJson(reader, Map.class);
-            readLock.unlock();
+            for (Object key : keys) {
+                if (jsonElement != null && !(jsonElement instanceof JsonNull)) {
+                    jsonElement = jsonElement.getAsJsonObject().get((String) key);
+                }
+            }
 
-            value = (String) map.get(key);
+            value = jsonElement;
 
         } catch (IOException e) {
             e.printStackTrace();
         }
+        readLock.unlock();
 
         return value;
+    }
+
+    private boolean removeFromFileObject(ArrayList<?> keys) {
+        JsonElement jsonWholeElement = null;
+        JsonElement jsonElement;
+        JsonElement removed = null;
+        readLock.lock();
+        try (Reader reader = new FileReader(FILENAME_ENVIRONMENT)) {
+            jsonWholeElement = JsonParser.parseReader(reader);
+            jsonElement = jsonWholeElement;
+
+            for (int i = 0; i < keys.size(); i++) {
+                if (jsonElement != null && !(jsonElement instanceof JsonNull)) {
+                    if (i == keys.size() - 1) {
+                        removed = jsonElement.getAsJsonObject().remove((String) keys.get(keys.size() - 1));
+                    } else {
+                        jsonElement = jsonElement.getAsJsonObject().get((String) keys.get(i));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        readLock.unlock();
+
+        if (removed != null) {
+            writeLock.lock();
+            try (FileWriter writer = new FileWriter(FILENAME_ENVIRONMENT)) {
+
+                gson.toJson(jsonWholeElement, writer);
+                writeLock.unlock();
+                return true;
+            } catch (IOException e) {
+                e.printStackTrace();
+                writeLock.unlock();
+            }
+        }
+        return false;
     }
 }

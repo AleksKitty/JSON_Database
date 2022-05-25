@@ -2,30 +2,20 @@ package server;
 
 public class ResponseToClient {
     private final String response;
-    private String value;
+    private Object value;
     private String reason;
 
-    public ResponseToClient(String response, String value, String reason) {
+    public ResponseToClient(String response, Object value, String reason) {
         this.response = response;
 
-        if (!value.isEmpty()) {
+        if (value instanceof String && ((String) value).isEmpty()) {
+            this.value = null;
+        } else if (value != null) {
             this.value = value;
         }
 
         if (!reason.isEmpty()) {
             this.reason = reason;
         }
-    }
-
-    public String getResponse() {
-        return response;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
-    public String getReason() {
-        return reason;
     }
 }

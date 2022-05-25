@@ -2,17 +2,18 @@ package client;
 
 import com.beust.jcommander.JCommander;
 import com.google.gson.Gson;
+import com.google.gson.internal.LinkedTreeMap;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.Map;
 
 public class Main {
     private static final String SERVER_ADDRESS = "127.0.0.1";
     private static final int SERVER_PORT = 56401;
 
-    private static final String FILENAME_TEST_ENVIRONMENT = System.getProperty("user.dir") + "/src/client/data/";
-    private static final String FILENAME_LOCAL_ENVIRONMENT = System.getProperty("user.dir") + "/JSON Database/task/src/client/data/";
+    private static final String FILENAME_ENVIRONMENT = System.getProperty("user.dir") + "/src/client/data/";
+    // Local:
+//    private static final String FILENAME_ENVIRONMENT = System.getProperty("user.dir") + "/JSON Database/task/src/client/data/";
 
     private static final Args clientArguments = new Args();
 
@@ -53,26 +54,25 @@ public class Main {
     private static String makeMessage() {
         Gson gson = new Gson();
 
-        MessageFromClient messageFromClient = null;
+        MessageFromClient messageFromClient;
 
+        LinkedTreeMap<?, ?> map = null;
         if (clientArguments.getInputFile() != null) {
             try {
-                Reader reader = new FileReader(FILENAME_TEST_ENVIRONMENT + clientArguments.getInputFile());
+                Reader reader = new FileReader(FILENAME_ENVIRONMENT + clientArguments.getInputFile());
 
                 // Convert JSON File to Java Object
-                Map<?, ?> map = gson.fromJson(reader, Map.class);
-
-                messageFromClient = new MessageFromClient((String) map.get("type"), (String) map.get("key"),
-                        (String) map.get("value"));
+                map = gson.fromJson(reader, LinkedTreeMap.class);
 
             } catch (IOException e) {
                 e.printStackTrace();
             }
         } else {
             messageFromClient = new MessageFromClient(clientArguments.getCommand(),
-                    clientArguments.getIndex(), clientArguments.getTextValue());
+                    clientArguments.getKey(), clientArguments.getTextValue());
+            return gson.toJson(messageFromClient);
         }
 
-        return gson.toJson(messageFromClient);
+        return gson.toJson(map);
     }
 }

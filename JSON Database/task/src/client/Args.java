@@ -10,7 +10,7 @@ public class Args {
     private String command;
 
     @Parameter(names = "-k", description = "Index of the cell")
-    private String index;
+    private String key;
 
     @Parameter(names = "-v", description = "Text message")
     private String textValue;
@@ -27,12 +27,8 @@ public class Args {
         }
     }
 
-    public String getIndex() {
-        if (index == null || index.isEmpty()) {
-            return "";
-        } else {
-            return index;
-        }
+    public String getKey() {
+        return key;
     }
 
     public String getTextValue() {
